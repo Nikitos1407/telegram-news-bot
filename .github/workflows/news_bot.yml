@@ -1,0 +1,53 @@
+name: Telegram News Bot
+
+on:
+  schedule:
+    - cron: '0 */2 * * *'
+  workflow_dispatch:
+
+jobs:
+  post-news:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout репозитория
+        uses: actions/checkout@v4
+
+      - name: Установка Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Установка зависимостей
+        run: pip install feedparser requests anthropic
+
+      - name: Создать config.json из секретов
+        run: |
+          cat > config.json << 'EOF'
+          {
+            "bot_token": "${{ secrets.TELEGRAM_BOT_TOKEN }}",
+            "channel_id": "${{ secrets.TELEGRAM_CHANNEL_ID }}",
+            "anthropic_api_key": "${{ secrets.ANTHROPIC_API_KEY }}",
+            "max_posts_per_run": 3,
+            "delay_between_posts_seconds": 15
+          }
+          EOF
+
+      - name: Восстановить историю постов из кэша
+        uses: actions/cache@v4
+        with:
+          path: posted_history.json
+          key: posted-history-${{ github.run_id }}
+          restore-keys: |
+            posted-history-
+
+      - name: Запустить бота
+        run: python news_bot.py
+
+      - name: Сохранить историю постов в кэш
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: posted_history.json
+          key: posted-history-${{ github.run_id }}
